@@ -26,45 +26,31 @@ class SoccerStatsService:
 
     @staticmethod
     def parse_player_data(raw_data):
-        players = []
-        for i in range(len(raw_data)):
-            player_data = {
-                "league": str(raw_data.iloc[i, 0]),
-                "season": str(raw_data.iloc[i, 1]),
-                "team": str(raw_data.iloc[i, 2]),
-                "player": str(raw_data.iloc[i, 3]),
-                "nation": str(raw_data.iloc[i, 4]),
-                "pos": str(raw_data.iloc[i, 5]),
-                "age": str(raw_data.iloc[i, 6]),
-                "born": int(raw_data.iloc[i, 7]),
-                "playing_time": {
-                    "MP": int(raw_data.iloc[i, 8]),
-                    "Starts": int(raw_data.iloc[i, 9]),
-                    "Min": int(raw_data.iloc[i, 10]),
-                    "90s": float(raw_data.iloc[i, 11])
-                },
-                "performance": {
-                    "Gls": int(raw_data.iloc[i, 12]),
-                    "Ast": int(raw_data.iloc[i, 13]),
-                    "G+A": int(raw_data.iloc[i, 14]),
-                    "G-PK": int(raw_data.iloc[i, 15]),
-                    "PK": int(raw_data.iloc[i, 16]),
-                    "PKatt": int(raw_data.iloc[i, 17]),
-                    "CrdY": int(raw_data.iloc[i, 18]),
-                    "CrdR": int(raw_data.iloc[i, 19])
-                },
-                "expected": {
-                    "xG": float(raw_data.iloc[i, 20]),
-                    "xAG": float(raw_data.iloc[i, 22])
-                },
-                "progression": {
-                    "PrgC": int(raw_data.iloc[i, 24]),
-                    "PrgP": int(raw_data.iloc[i, 25]),
-                    "PrgR": int(raw_data.iloc[i, 26])
-                }
+        keys = [
+            "league", "season", "team", "player", "nation", "pos", "age", "born",
+            "MP", "Starts", "Min", "90s",
+            "Gls", "Ast", "G+A", "G-PK", "PK", "PKatt", "CrdY", "CrdR",
+            "xG", "xAG", "PrgC", "PrgP", "PrgR",
+            "per_90_Gls", "per_90_Ast", "per_90_G+A", "per_90_G-PK", "per_90_G+A-PK",
+            "per_90_xG", "per_90_xAG", "per_90_xG+xAG", "per_90_npxG", "per_90_npxG+xAG"
+        ]
+
+        def create_nested_dict(row):
+            return {
+                keys[i]: (
+                    float(row[i]) if isinstance(row[i], (float, int)) and i > 7 else str(row[i])
+                ) if i < 8 else {
+                    "playing_time": {k: int(row[j]) for j, k in enumerate(keys[8:12], 8)},
+                    "performance": {
+                        **{k: int(row[j]) for j, k in enumerate(keys[12:20], 12)},
+                        **{k: float(row[j]) for j, k in enumerate(keys[20:22], 20)}
+                    },
+                    "progression": {k: int(row[j]) for j, k in enumerate(keys[22:25], 22)},
+                    "per_90_minutes": {k.split('_')[2]: float(row[j]) for j, k in enumerate(keys[25:], 25)}
+                }[keys[i]]
             }
-            players.append(player_data)
-        return players
+
+        return [create_nested_dict(raw_data.iloc[i]) for i in range(len(raw_data))]
 
 
 class OpenAIService:
@@ -76,8 +62,9 @@ class OpenAIService:
             f"Generate a concise summary for the following soccer player stats. Highlight if they are good fantasy assets too:\n"
             f"Name: {player_stats['player']}, Team: {player_stats['team']}, "
             f"Position: {player_stats['pos']}, Goals: {player_stats['performance']['Gls']}, "
-            f"Assists: {player_stats['performance']['Ast']}, xG: {player_stats['expected']['xG']}, "
-            f"xAG: {player_stats['expected']['xAG']}"
+            f"Assists: {player_stats['performance']['Ast']}, xG: {player_stats['performance']['xG']}, "
+            f"xAG: {player_stats['performance']['xAG']}, Goals per 90 minutes: {player_stats['per_90_minutes']['Gls']}, "
+            f"Assists per 90 minutes: {player_stats['per_90_minutes']['Ast']}"
         )
         try:
             response = self.client.chat.completions.create(
