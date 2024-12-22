@@ -1,31 +1,33 @@
+from openai import OpenAI
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 import soccerdata as sd
 from pathlib import Path
+from dotenv import load_dotenv
+import os
 
-# Initialize the FBRef scraper with Path object for data_dir
-fbref = sd.FBref(leagues="ENG-Premier League", seasons="2024", data_dir=Path("/tmp/FBref"))
+# Load environment variables
+load_dotenv()
 
-@csrf_exempt
-def search_players(request):
-    if request.method == 'GET':
-        # Read the player stats DataFrame
-        stat_type = 'standard'
+class SoccerStatsService:
+    def __init__(self):
+        self.fbref = sd.FBref(
+            leagues="ENG-Premier League",
+            seasons="2024",
+            data_dir=Path("/tmp/FBref")
+        )
+
+    def fetch_player_stats(self, stat_type='standard'):
         try:
-            raw_data = fbref.read_player_season_stats(stat_type=stat_type)
+            raw_data = self.fbref.read_player_season_stats(stat_type=stat_type)
+            return raw_data.reset_index()
         except ValueError:
-            return JsonResponse({'error': f'Invalid stat_type: {stat_type}'}, status=400)
+            raise ValueError(f"Invalid stat_type: {stat_type}")
 
-        # Reset index to include multi-index columns as part of the DataFrame
-        raw_data = raw_data.reset_index()
-        print(raw_data)
-
-        # csv_file_path = "/tmp/raw_data.csv"
-        # raw_data.to_csv(csv_file_path, index=False)
-        # Construct JSON directly
-        players_json = []
+    @staticmethod
+    def parse_player_data(raw_data):
+        players = []
         for i in range(len(raw_data)):
-            # Combine all player information into a single dictionary
             player_data = {
                 "league": str(raw_data.iloc[i, 0]),
                 "season": str(raw_data.iloc[i, 1]),
@@ -35,7 +37,6 @@ def search_players(request):
                 "pos": str(raw_data.iloc[i, 5]),
                 "age": str(raw_data.iloc[i, 6]),
                 "born": int(raw_data.iloc[i, 7]),
-                # Nested categories
                 "playing_time": {
                     "MP": int(raw_data.iloc[i, 8]),
                     "Starts": int(raw_data.iloc[i, 9]),
@@ -53,47 +54,87 @@ def search_players(request):
                     "CrdR": int(raw_data.iloc[i, 19])
                 },
                 "expected": {
-                    "xG": int(raw_data.iloc[i, 20]),
-                    "npxG": int(raw_data.iloc[i, 21]),
-                    "xAG": int(raw_data.iloc[i, 22]),
-                    "npxG+xAG": int(raw_data.iloc[i, 23])
+                    "xG": float(raw_data.iloc[i, 20]),
+                    "xAG": float(raw_data.iloc[i, 22])
                 },
                 "progression": {
                     "PrgC": int(raw_data.iloc[i, 24]),
                     "PrgP": int(raw_data.iloc[i, 25]),
                     "PrgR": int(raw_data.iloc[i, 26])
-                },
-                "per_90_minutes": {
-                    "Gls": int(raw_data.iloc[i, 27]),
-                    "Ast": int(raw_data.iloc[i, 28]),
-                    "G+A": int(raw_data.iloc[i, 29]),
-                    "G-PK": int(raw_data.iloc[i, 30]),
-                    "G+A-PK": int(raw_data.iloc[i, 31]),
-                    "xG": int(raw_data.iloc[i, 32]),
-                    "xAG": int(raw_data.iloc[i, 33]),
-                    "xG+xAG": int(raw_data.iloc[i, 34]),
-                    "npxG": int(raw_data.iloc[i, 35]),
-                    "npxG+xAG": int(raw_data.iloc[i, 36])
                 }
             }
-            players_json.append(player_data)
+            players.append(player_data)
+        return players
 
-        query = request.GET.get('q', '').strip()
 
-        # If no query, return the top 5 players
+class OpenAIService:
+    def __init__(self, api_key):
+        self.client = OpenAI(api_key=api_key)
+
+    def generate_summary(self, player_stats):
+        prompt = (
+            f"Generate a concise summary for the following soccer player stats. Highlight if they are good fantasy assets too:\n"
+            f"Name: {player_stats['player']}, Team: {player_stats['team']}, "
+            f"Position: {player_stats['pos']}, Goals: {player_stats['performance']['Gls']}, "
+            f"Assists: {player_stats['performance']['Ast']}, xG: {player_stats['expected']['xG']}, "
+            f"xAG: {player_stats['expected']['xAG']}"
+        )
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-4",
+                messages=[{"role": "user", "content": prompt}]
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            return f"Error generating summary: {str(e)}"
+
+
+class PlayerSearchHandler:
+    def __init__(self, stats_service, ai_service):
+        self.stats_service = stats_service
+        self.ai_service = ai_service
+
+    def handle_search(self, query):
+        raw_data = self.stats_service.fetch_player_stats()
+        players = self.stats_service.parse_player_data(raw_data)
+
         if not query:
-            return JsonResponse(players_json[:5], safe=False)
+            return players[:5]
 
-        # Validate query length
         if len(query) < 3:
-            return JsonResponse({'error': 'Search query must be at least 3 characters long'}, status=400)
+            raise ValueError("Search query must be at least 3 characters long")
 
-        # Filter players by name
         filtered_players = [
-            player for player in players_json if query.lower() in player["player"].lower()
+            player for player in players if query.lower() in player["player"].lower()
         ]
 
-        # Return filtered players
-        return JsonResponse(filtered_players, safe=False)
+        if not filtered_players:
+            raise ValueError("Player not found")
+
+        results = []
+        for player_stats in filtered_players:
+            summary = self.ai_service.generate_summary(player_stats)
+            results.append({"player_stats": player_stats, "summary": summary})
+
+        return results
+
+
+# Instantiate services
+stats_service = SoccerStatsService()
+ai_service = OpenAIService(api_key=os.getenv('OPENAI_API_KEY'))
+search_handler = PlayerSearchHandler(stats_service, ai_service)
+
+@csrf_exempt
+def search_players(request):
+    if request.method == 'GET':
+        query = request.GET.get('q', '').strip()
+
+        try:
+            results = search_handler.handle_search(query)
+            return JsonResponse(results, safe=False)
+        except ValueError as e:
+            return JsonResponse({'error': str(e)}, status=400)
+        except Exception as e:
+            return JsonResponse({'error': f"Unexpected error: {str(e)}"}, status=500)
 
     return JsonResponse({'error': 'Invalid request method'}, status=400)
