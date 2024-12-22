@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Player Search</title>
+    <script>
+        async function searchPlayers() {
+            const query = document.getElementById('searchInput').value;
+            const response = await fetch(`/main/players/?q=${query}`);
+            const players = await response.json();
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+            players.forEach(player => {
+                const playerDiv = document.createElement('div');
+                playerDiv.innerHTML = `<a href='/main/player/${player.id}/'>${player.name}</a>`;
+                resultsDiv.appendChild(playerDiv);
+            });
+        }
+    </script>
+</head>
+<body>
+    <h1>Search for Players</h1>
+    <input type="text" id="searchInput" placeholder="Enter player name" />
+    <button onclick="searchPlayers()">Search</button>
+    <div id="results"></div>
+</body>
+</html>

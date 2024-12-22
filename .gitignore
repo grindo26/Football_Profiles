@@ -1,0 +1,100 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.pyd
+
+# C extensions
+*.so
+
+# Distribution / packaging
+*.egg-info/
+*.egg
+dist/
+build/
+
+# PyInstaller
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so as to inject date/other vars.
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+target/
+
+# IPython
+profile_default/
+ipython_config.py
+
+# Jupyter Notebook
+.jupyter/
+
+# SAGE MathCloud
+.sagemathcloud/
+
+# Enthought Canopy
+.ipython/
+
+# Virtual environment
+venv/
+env/
+.venv/
+
+# Environment variables
+.env
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# PyCharm
+# File-based project format
+.idea/
+
+# Directory-based project format. 
+# Only valid solution when the language level is set to "Python" in 
+# Settings > Project: <project_name> > Project Interpreter > Language Level 
+# and is using the Project Interpreter.
+# https://github.com/joeblau/gitignore/issues/9#issuecomment-727992890
+# .idea/
+# Miscellaneous
+*.h5
+*.egg-info/
+*.egg
+dist/
+build/
